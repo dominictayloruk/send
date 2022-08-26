@@ -169,14 +169,14 @@ const conf = convict({
     env: 'BASE_URL'
   },
   custom_title: {
-	format: String,
-	default: 'Send',
-	env: 'CUSTOM_TITLE'
+    format: String,
+    default: 'Send',
+    env: 'CUSTOM_TITLE'
   },
   custom_description: {
-	format: String,
-	default: 'Encrypt and send files with a link that automatically expires to ensure your important documents don’t stay online forever.',
-	env: 'CUSTOM_DESCRIPTION'
+    format: String,
+    default: 'Encrypt and send files with a link that automatically expires to ensure your important documents don’t stay online forever.',
+    env: 'CUSTOM_DESCRIPTION'
   },
   detect_base_url: {
     format: Boolean,
@@ -329,11 +329,11 @@ const conf = convict({
       default: '',
       env: 'UI_CUSTOM_ASSETS_WORDMARK'
     },
-	custom_css: {
-	  format: String,
-	  default: '',
-	  env: 'UI_CUSTOM_CSS'
-	}
+    custom_css: {
+      format: String,
+      default: '',
+      env: 'UI_CUSTOM_CSS'
+    }
   }
 });
 
