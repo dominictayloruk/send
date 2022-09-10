@@ -44,7 +44,7 @@ module.exports = async function(req) {
     facebook: baseUrl + '/' + assets.get('send-fb.jpg'),
     twitter: baseUrl + '/' + assets.get('send-twitter.jpg'),
     wordmark: assets.get('wordmark.svg') + '#logo',
-    custom_css: assets.get('undefined')
+    custom_css: ''
   };
   Object.keys(uiAssets).forEach(index => {
     if (config.ui_custom_assets[index] !== '')
