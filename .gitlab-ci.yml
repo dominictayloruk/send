@@ -1,105 +1,71 @@
-image: "node:15-slim"
 
 stages:
   - test
-  - artifact
   - release
-
-before_script:
-  # Install dependencies
-  - apt-get update
-  - apt-get install -y git python3 build-essential libxtst6
-
-  # Prepare Chrome for puppeteer
-  - apt-get install -y wget gnupg
-  - wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
-  - sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
-  - apt-get update
-  - apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 --no-install-recommends
 
 # Build Send, run npm tests
 test:
   stage: test
+  image: "node:15-slim"
+  only:
+    - api
+    - branches
+    - chat
+    - merge_requests
+    - pushes
+    - schedules
+    - tags
+    - triggers
+    - web
+  before_script:
+    # Install dependencies
+    - apt-get update
+    - apt-get install -y git python3 build-essential libxtst6
+
+    # Prepare Chrome for puppeteer
+    - apt-get install -y wget gnupg
+    - wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
+    - sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
+    - apt-get update
+    - apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 --no-install-recommends
   script:
     - npm ci
     - npm run lint
     - npm test
 
-# Build Docker image, export Docker image artifact
-artifact-docker:
-  stage: artifact
-  image: docker:latest
-  needs: []
-  services:
-    - docker:dind
-  variables:
-    IMG_FILE: "send:git-$CI_COMMIT_SHORT_SHA.tar"
-    IMG_NAME: "send:git-$CI_COMMIT_SHORT_SHA"
-  before_script: []
-  script:
-    - docker build -t $IMG_NAME .
-    - docker image save -o $IMG_FILE $IMG_NAME
-  artifacts:
-    name: artifact-docker
-    paths:
-      - $IMG_FILE
-    expire_in: 1 week
-
-# Release public Docker image for the master branch
-release-docker-master:
-  stage: release
-  image: docker:latest
-  dependencies:
-    - artifact-docker
-  services:
-    - docker:dind
-  only:
-    - master
-  variables:
-    IMG_IMPORT_FILE: "send:git-$CI_COMMIT_SHORT_SHA.tar"
-    IMG_IMPORT_NAME: "send:git-$CI_COMMIT_SHORT_SHA"
-    IMG_NAME: "registry.gitlab.com/timvisee/send:master-$CI_COMMIT_SHORT_SHA"
-  before_script: []
-  script:
-    # Login in to registry
-    - 'docker login registry.gitlab.com -u $DOCKER_USER -p $DOCKER_PASS'
-
-    # Load existing, retag for new image images
-    - docker image load -i $IMG_IMPORT_FILE
-    - docker tag $IMG_IMPORT_NAME $IMG_NAME
-
-    # Publish tagged image
-    - docker push $IMG_NAME
-
-    - 'echo "Docker image artifact published, available as:" && echo "  docker pull $IMG_NAME"'
-
-# Release public Docker image for a version tag
 release-docker:
   stage: release
   image: docker:latest
-  dependencies:
-    - artifact-docker
   services:
     - docker:dind
   only:
-    - /^v(\d+\.)*\d+$/
-  variables:
-    IMG_IMPORT_FILE: "send:git-$CI_COMMIT_SHORT_SHA.tar"
-    IMG_IMPORT_NAME: "send:git-$CI_COMMIT_SHORT_SHA"
-    IMG_NAME: "registry.gitlab.com/timvisee/send:$CI_COMMIT_REF_NAME"
-    IMG_NAME_LATEST: "registry.gitlab.com/timvisee/send:latest"
-  before_script: []
+    - api
+    - branches
+    - chat
+    - merge_requests
+    - pushes
+    - schedules
+    - tags
+    - triggers
+    - web
   script:
-    # Login in to registry
-    - 'docker login registry.gitlab.com -u $DOCKER_USER -p $DOCKER_PASS'
-
-    # Load existing, retag for new image images
-    - docker image load -i $IMG_IMPORT_FILE
-    - docker tag $IMG_IMPORT_NAME $IMG_NAME
-    - docker tag $IMG_IMPORT_NAME $IMG_NAME_LATEST
-
-    # Publish tagged image
-    - docker push $IMG_NAME
-    - docker push $IMG_NAME_LATEST
-
-    - 'echo "Docker image artifact published, available as:" && echo "  docker pull $IMG_NAME_LATEST" && echo "  docker pull $IMG_NAME"'
+    - docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+    - docker build -t send .
+    - |
+      if [ "$CI_PIPELINE_SOURCE" == "merge_request_event" ]; then
+        IMAGE_NAMES="$CI_REGISTRY_IMAGE/mr:$CI_MERGE_REQUEST_IID"
+      elif [ "$CI_COMMIT_TAG" != "" ]; then
+        IMAGE_NAMES="$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG $CI_REGISTRY_IMAGE:latest"
+      else
+        IMAGE_NAMES="$CI_REGISTRY_IMAGE/$CI_COMMIT_BRANCH:$CI_COMMIT_SHORT_SHA"
+      fi
+    - |
+      for image in $IMAGE_NAMES; do
+        docker tag send $image
+        docker push $image
+      done
+    - |
+      echo "Container image pushed. You can pull it with";
+      for image in $IMAGE_NAMES; do
+        echo "docker pull $image"
+      done
